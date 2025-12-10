@@ -1,4 +1,4 @@
-import type { UploadResponse, ExtractResponse, ExtractRequest } from './types';
+import type { UploadResponse, ExtractResponse, ExtractRequest, DeleteResponse } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -68,5 +68,18 @@ export async function downloadExcel(fileId: string): Promise<void> {
   link.click();
   document.body.removeChild(link);
   window.URL.revokeObjectURL(url);
+}
+
+export async function cleanupFiles(fileId: string): Promise<DeleteResponse> {
+  const response = await fetch(`${API_BASE_URL}/cleanup/${fileId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Cleanup failed' }));
+    throw new Error(error.detail || 'Failed to cleanup files');
+  }
+
+  return await response.json();
 }
 

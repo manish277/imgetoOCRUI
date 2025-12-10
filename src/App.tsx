@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { uploadFile, extractData, downloadExcel } from './api';
+import { uploadFile, extractData, downloadExcel, cleanupFiles } from './api';
 import type { ExtractResponse } from './types';
 import { FieldsPreview } from './components/FieldsPreview';
 import { TablesPreview } from './components/TablesPreview';
@@ -73,6 +73,14 @@ function App() {
         if (extractRes.file_id) {
           try {
             await downloadExcel(extractRes.file_id);
+            // Step 4: Automatically cleanup files after successful download
+            try {
+              await cleanupFiles(extractRes.file_id);
+              console.log('Files cleaned up successfully');
+            } catch (cleanupErr: any) {
+              // Don't show error for cleanup, just log it
+              console.warn('Auto-cleanup failed:', cleanupErr);
+            }
           } catch (downloadErr: any) {
             // Don't show error for download, just log it
             console.warn('Auto-download failed:', downloadErr);
@@ -278,7 +286,7 @@ function App() {
                   {extractResponse.timing && (
                     <p className="text-xs text-gray-500">
                       Processed in {extractResponse.timing.total_time_ms?.toFixed(0)}ms
-                      {extractResponse.file_id && ' • Excel downloaded'}
+                      {extractResponse.file_id && ' • Excel downloaded • Files cleaned'}
                     </p>
                   )}
                 </div>

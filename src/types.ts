@@ -97,3 +97,9 @@ export interface OCRResult {
   finish_reason?: string;
 }
 
+export interface DeleteResponse {
+  file_id: string;
+  deleted_files: string[];
+  message: string;
+}
+
