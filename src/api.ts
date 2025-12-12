@@ -1,85 +1,78 @@
+import axios from 'axios';
 import type { UploadResponse, ExtractResponse, ExtractRequest, DeleteResponse } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+// Create axios instance
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 export async function uploadFile(file: File): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE_URL}/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Upload failed');
+  try {
+    const response = await apiClient.post<UploadResponse>('/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || 'Upload failed');
   }
-
-  return await response.json();
 }
 
 export async function extractData(request: ExtractRequest): Promise<ExtractResponse> {
-  const response = await fetch(`${API_BASE_URL}/extract`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.detail || 'Extraction failed');
+  try {
+    const response = await apiClient.post<ExtractResponse>('/extract', request);
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || 'Extraction failed');
   }
-
-  return data;
 }
 
 export async function downloadExcel(fileId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/download/${fileId}`, {
-    method: 'GET',
-  });
+  try {
+    const response = await apiClient.get(`/download/${fileId}`, {
+      responseType: 'blob',
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Download failed' }));
-    throw new Error(error.detail || 'Failed to download Excel file');
-  }
-
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-
-  // Extract filename from Content-Disposition header or use default
-  const contentDisposition = response.headers.get('Content-Disposition');
-  let filename = `${fileId}.xlsx`;
-  
-  if (contentDisposition) {
-    const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
-    if (filenameMatch) {
-      filename = filenameMatch[1];
+    // Extract filename from Content-Disposition header or use default
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `${fileId}.xlsx`;
+    
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
     }
-  }
 
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || 'Failed to download Excel file');
+  }
 }
 
 export async function cleanupFiles(fileId: string): Promise<DeleteResponse> {
-  const response = await fetch(`${API_BASE_URL}/cleanup/${fileId}`, {
-    method: 'DELETE',
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Cleanup failed' }));
-    throw new Error(error.detail || 'Failed to cleanup files');
+  try {
+    const response = await apiClient.delete<DeleteResponse>(`/cleanup/${fileId}`);
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || 'Failed to cleanup files');
   }
-
-  return await response.json();
 }
 

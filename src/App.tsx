@@ -5,6 +5,7 @@ import { FieldsPreview } from './components/FieldsPreview';
 import { TablesPreview } from './components/TablesPreview';
 import { OCRPreview } from './components/OCRPreview';
 import { JSONPreview } from './components/JSONPreview';
+import { ProgressBar } from './components/ProgressBar';
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -54,6 +55,7 @@ function App() {
 
     setLoading(true);
     setError(null);
+    setExtractResponse(null);
 
     try {
       // Step 1: Upload file
@@ -257,17 +259,9 @@ function App() {
           </div>
         )}
 
-        {/* Loading State */}
+        {/* Progress Bar */}
         {loading && (
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-6 mb-4 text-center">
-            <div className="inline-flex flex-col items-center gap-3">
-              <div className="relative">
-                <div className="w-12 h-12 border-4 border-indigo-200 rounded-full"></div>
-                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
-              </div>
-              <p className="text-sm font-medium text-gray-700">Processing your document...</p>
-            </div>
-          </div>
+          <ProgressBar isLoading={loading} />
         )}
 
         {/* Extract Response - Simplified */}

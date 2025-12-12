@@ -103,3 +103,23 @@ export interface DeleteResponse {
   message: string;
 }
 
+export interface ProgressData {
+  file_id: string;
+  current_step: number;
+  current_step_id: string;
+  current_step_name: string;
+  current_step_description: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'error';
+  progress_percent: number;
+  message: string;
+  error: string | null;
+  steps: Array<{
+    id: string;
+    name: string;
+    description: string;
+  }>;
+  timing: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+}
+
