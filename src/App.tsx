@@ -1,19 +1,13 @@
 import { useState, useEffect } from 'react';
 import { uploadFile, extractData, downloadExcel, cleanupFiles } from './api';
-import type { ExtractResponse } from './types';
-import { FieldsPreview } from './components/FieldsPreview';
-import { TablesPreview } from './components/TablesPreview';
-import { OCRPreview } from './components/OCRPreview';
-import { JSONPreview } from './components/JSONPreview';
 import { ProgressBar } from './components/ProgressBar';
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [extractResponse, setExtractResponse] = useState<ExtractResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'fields' | 'tables' | 'ocr' | 'json'>('fields');
+  const [success, setSuccess] = useState(false);
   const [ocrOnly, setOcrOnly] = useState(false);
 
   // Clean up preview URL on unmount or file change
@@ -29,8 +23,8 @@ function App() {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
-      setExtractResponse(null);
       setError(null);
+      setSuccess(false);
 
       // Create preview URL for images
       if (selectedFile.type.startsWith('image/')) {
@@ -55,7 +49,7 @@ function App() {
 
     setLoading(true);
     setError(null);
-    setExtractResponse(null);
+    setSuccess(false);
 
     try {
       // Step 1: Upload file
@@ -66,13 +60,13 @@ function App() {
         file_id: uploadRes.file_id,
         run_ocr_only: ocrOnly,
       });
-      setExtractResponse(extractRes);
       
+      // Check for extraction errors
       if (extractRes.error) {
-        setError(extractRes.error);
-      } else {
+        setError(`Extraction error: ${extractRes.error}`);
+      } else if (extractRes.extracted_json) {
         // Step 3: Automatically download Excel if available
-        if (extractRes.file_id) {
+        if (extractRes.file_id && extractRes.excel_path) {
           try {
             await downloadExcel(extractRes.file_id);
             // Step 4: Automatically cleanup files after successful download
@@ -83,11 +77,21 @@ function App() {
               // Don't show error for cleanup, just log it
               console.warn('Auto-cleanup failed:', cleanupErr);
             }
+            // Show success message
+            setSuccess(true);
           } catch (downloadErr: any) {
-            // Don't show error for download, just log it
+            // Show error if download fails
+            const errorMsg = downloadErr.message || 'Excel download failed';
+            setError(`Error: ${errorMsg}`);
             console.warn('Auto-download failed:', downloadErr);
           }
+        } else if (extractRes.file_id && !extractRes.excel_path) {
+          // Excel generation failed
+          setError('Error: Excel file generation failed.');
         }
+      } else {
+        // No data extracted and no error - might be an issue
+        setError('No data was extracted. Please check the file and try again.');
       }
       
       // Clear preview after successful upload
@@ -111,10 +115,9 @@ function App() {
     // Reset all state
     setFile(null);
     setPreviewUrl(null);
-    setExtractResponse(null);
     setError(null);
+    setSuccess(false);
     setOcrOnly(false);
-    setActiveTab('fields');
     
     // Reset file input
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -136,8 +139,8 @@ function App() {
           </p>
         </div>
 
-        {/* Simplified Upload Card - Only show if no results */}
-        {!extractResponse && (
+        {/* Simplified Upload Card - Only show if not loading and no success */}
+        {!loading && !success && (
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5 mb-4">
             {/* Upload Area */}
             <div className="relative mb-4">
@@ -264,71 +267,28 @@ function App() {
           <ProgressBar isLoading={loading} />
         )}
 
-        {/* Extract Response - Simplified */}
-        {extractResponse && !extractResponse.error && extractResponse.extracted_json && (
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-5">
-            {/* Compact Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Extraction Complete</h2>
-                  {extractResponse.timing && (
-                    <p className="text-xs text-gray-500">
-                      Processed in {extractResponse.timing.total_time_ms?.toFixed(0)}ms
-                      {extractResponse.file_id && ' • Excel downloaded • Files cleaned'}
-                    </p>
-                  )}
-                </div>
+        {/* Success Message */}
+        {success && !loading && (
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 p-8 mb-4">
+            <div className="flex flex-col items-center justify-center text-center gap-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Process Complete</h2>
+                <p className="text-lg text-gray-600">File downloaded successfully</p>
               </div>
               <button
                 onClick={handleNewUpload}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2"
+                className="mt-4 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 New Upload
               </button>
-            </div>
-
-            {/* Compact Tabs */}
-            <div className="border-b border-gray-200 mb-4">
-              <nav className="flex space-x-6">
-                {['fields', 'tables', 'ocr', 'json'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab as any)}
-                    className={`py-2 px-1 border-b-2 font-medium text-xs transition-colors ${
-                      activeTab === tab
-                        ? 'border-indigo-500 text-indigo-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </button>
-                ))}
-              </nav>
-            </div>
-
-            {/* Tab Content - Compact */}
-            <div>
-              {activeTab === 'fields' && (
-                <FieldsPreview fields={extractResponse.extracted_json.fields} />
-              )}
-              {activeTab === 'tables' && (
-                <TablesPreview tables={extractResponse.extracted_json.tables} />
-              )}
-              {activeTab === 'ocr' && (
-                <OCRPreview ocrText={extractResponse.extracted_json.ocr_text || extractResponse.extracted_json.raw_text} />
-              )}
-              {activeTab === 'json' && (
-                <JSONPreview data={extractResponse.extracted_json} />
-              )}
             </div>
           </div>
         )}
